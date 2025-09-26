@@ -1,28 +1,23 @@
-
-OS / editors
-
+# OS / editors
 .DS_Store
 *.swp
 
-Python
-
-pycache/
+# Python
+__pycache__/
 *.py[cod]
 .venv/
 .env
 .ipynb_checkpoints/
 
-LaTeX build
-
-paper/.aux
-paper/.log
-paper/.out
-paper/.bbl
-paper/.blg
-paper/.toc
+# LaTeX build
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.bbl
+paper/*.blg
+paper/*.toc
 paper/*.synctex.gz
 
-Not versioned (big/raw/private)
-
+# Not versioned (big/raw/private)
 input/
 results/logs/
