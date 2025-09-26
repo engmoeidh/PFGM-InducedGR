@@ -42,7 +42,7 @@ def build_alpha_max_vs_x():
     if xcol is None:
         raise ValueError(f"{src} must contain an 'x' or '(v/c)^2' column")
 
-    # Melt all alpha columns: alpha_max_M_2.6Msun_delta_0.001  → mass=2.6, delta=0.001
+    # Melt all alpha columns: alpha_max_M_2.6Msun_delta_0.001  -> mass=2.6, delta=0.001
     value_cols = [c for c in df.columns if c != xcol]
     long = df.melt(id_vars=[xcol], value_vars=value_cols, var_name="series", value_name="alpha_max")
 
@@ -58,18 +58,16 @@ def build_alpha_max_vs_x():
     long["mass"]  = [t[0] for t in parsed]
     long["delta"] = [t[1] for t in parsed]
     long = long.rename(columns={xcol:"X"})
-    # Keep only necessary columns, drop NA rows
     out_df = long[["X","alpha_max","mass","delta"]].dropna().reset_index(drop=True)
 
     out = DATA / "alpha_max_vs_x_mass_dependent.csv"
     out_df.to_csv(out, index=False)
-    print(f"[ok] alpha_max_vs_x: normalized wide→long → {out}")
+    print(f"[ok] alpha_max_vs_x: normalized wide->long -> {out}")
 
 # --- alpha_max vs mass (prefer dimensionless hat_alpha) ---
 def build_alpha_max_vs_mass():
     src = REF / "alpha_max_vs_mass.csv"
     if not src.exists():
-        # demo
         out = DATA / "alpha_max_vs_mass.csv"
         pd.DataFrame({"mass":[1.2,1.6,2.0],"alpha_max":[12.0,10.0,8.0]}).to_csv(out, index=False)
         print(f"[ok] alpha_max_vs_mass: wrote demo {out.name}")
@@ -100,7 +98,7 @@ def build_alpha_max_vs_mass():
     })
     out = DATA / "alpha_max_vs_mass.csv"
     out_df.to_csv(out, index=False)
-    print(f"[ok] alpha_max_vs_mass: normalized → {out} (alpha from '{alpha_col}')")
+    print(f"[ok] alpha_max_vs_mass: normalized -> {out} (alpha from '{alpha_col}')")
 
 # --- pulsar bounds (copy through) ---
 def build_pulsar_bounds():
