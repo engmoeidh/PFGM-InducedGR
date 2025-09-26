@@ -13,7 +13,7 @@ def main():
     ax.plot(df["mass"], df["alpha_max"], marker="o")
     ax.set_xlabel("Mass [M☉]")
     ax.set_ylabel(r"$\alpha_{\max}$")
-    ax.set_title(r"$\alpha_{\max}$ vs mass")
+    ax.set_title(r"$\alpha_{\max}$ vs mass (normalized)")
     ax.grid(True, ls=":")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT, dpi=220, bbox_inches="tight")
