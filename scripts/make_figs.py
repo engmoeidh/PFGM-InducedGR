@@ -1,20 +1,10 @@
 """
-Generate an example figure into figures/.
-Replace/extend with your real pipelines.
+Regenerate all core figures for the Induced-GR paper.
+
+Right now this just calls the PN-suppression generator; you can
+extend it to call the other fig_* scripts if you like.
 """
-from pathlib import Path
-import numpy as np
-import matplotlib.pyplot as plt
+from fig_pn_suppression import main as make_pn_suppression
 
-Path("figures").mkdir(parents=True, exist_ok=True)
-
-x = np.logspace(-10, -1, 200)
-y = np.ones_like(x)
-fig, ax = plt.subplots()
-ax.semilogx(x, y)
-ax.set_xlabel("x = (v/c)^2")
-ax.set_ylabel("reference")
-ax.set_title("PN suppression — placeholder")
-ax.grid(True, which="both", ls=":")
-fig.savefig("figures/pn_suppression.png", dpi=180, bbox_inches="tight")
-print("Wrote figures/pn_suppression.png")
+if __name__ == "__main__":
+    make_pn_suppression()

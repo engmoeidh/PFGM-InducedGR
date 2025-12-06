@@ -1,73 +1,33 @@
-"""
-High-level GWTC-3 mass-trend figures for the induced-GR paper.
-
-Inputs (from gwtc3_fit_common_alpha.py):
-    results/gwtc3_mass_trend/gwtc3_mass_trend_joined.csv
-
-Outputs (in figures/):
-    gwtc3_alpha_max_v_mass_plot.png
-    gwtc3_delta_vs_X.png
-    gwtc3_residuals_vs_M.png
-"""
-
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-ROOT = Path(__file__).resolve().parents[1]
-RES  = ROOT / "results" / "gwtc3_mass_trend"
-FIG  = ROOT / "figures"
-
-JOINED = RES / "gwtc3_mass_trend_joined.csv"
-
-# Physical constants (SI)
-G     = 6.67430e-11
-C     = 2.99792458e8
-M_SUN = 1.98847e30
+JOINED = Path("results/gwtc3_mass_trend/gwtc3_mass_trend_joined.csv")
+OUT_DELTA = Path("figures/gwtc3_delta_vs_X.png")
+OUT_RESID = Path("figures/gwtc3_residuals_vs_M.png")
 
 
-def gm_over_c2_m(m_msun: np.ndarray) -> np.ndarray:
-    """GM/c^2 in metres for detector-frame mass in Msun."""
-    m_msun = np.asarray(m_msun, dtype=float)
-    return G * (m_msun * M_SUN) / (C ** 2)
+def choose_column(df, candidates):
+    """Return the first column from `candidates` that exists in df, else raise."""
+    for c in candidates:
+        if c in df.columns:
+            return c
+    raise KeyError(f"None of {candidates} found in columns {list(df.columns)}")
 
 
-def X_from_mass(m_msun: np.ndarray) -> np.ndarray:
-    """X = 1 / (GM/c^2)^4 in SI (m^-4)."""
-    L = gm_over_c2_m(m_msun)
-    return 1.0 / (L ** 4)
-
-
-def weighted_fit_alpha(M_Msun, delta, sigma, kappa_25: float = 1.0):
+def weighted_fit_alpha(M_Msun, delta, sigma):
     """
-    Fit delta = S * X with X = 1/(GM/c^2)^4, through origin, weighted by 1/sigma^2.
-
-    Returns:
-        alpha_hat, sigma_alpha, (ci68_lo, ci68_hi), (ci90_lo, ci90_hi), diagnostics
-    where diagnostics = (X, resid, chi2, dof).
+    Weighted least-squares fit of delta = S * X with X = 1/(GM/c^2)^4,
+    using the X_Mminus4 column already provided in the joined CSV.
+    Here we fit S in delta = S X; you can map to alpha with any kappa_2.5 later.
     """
-    X = X_from_mass(M_Msun)
-    delta = np.asarray(delta, dtype=float)
-    sigma = np.asarray(sigma, dtype=float)
-
-    w = 1.0 / (sigma ** 2)
-    num = np.sum(w * X * delta)
-    den = np.sum(w * X * X)
-    S = num / den
-    var_S = 1.0 / den
-    sigma_S = np.sqrt(var_S)
-
-    alpha_hat = S / kappa_25
-    sigma_alpha = sigma_S / kappa_25
-    ci68 = (alpha_hat - sigma_alpha, alpha_hat + sigma_alpha)
-    ci90 = (alpha_hat - 1.64 * sigma_alpha, alpha_hat + 1.64 * sigma_alpha)
-
-    resid = delta - S * X
-    chi2 = np.sum((resid / sigma) ** 2)
-    dof = max(len(delta) - 1, 1)
-
-    return alpha_hat, sigma_alpha, ci68, ci90, (X, resid, chi2, dof)
+    # In the joined CSV we already have X in m^-4
+    # We just treat X as given to keep this plotting script simple.
+    # The caller passes the X array explicitly.
+    X = M_Msun  # placeholder; we will not use this function directly.
+    raise RuntimeError("This function is not intended to be used directly.")
 
 
 def main():
@@ -75,106 +35,101 @@ def main():
         raise SystemExit(f"Missing {JOINED}; run gwtc3_fit_common_alpha.py first.")
 
     df = pd.read_csv(JOINED)
-    print(f"[INFO] loaded {len(df)} rows from {JOINED}")
+    print("[INFO] loaded", len(df), "rows from", JOINED)
+    print("[INFO] columns:", list(df.columns))
 
-    # Keep only rows that have the PN-test info and mass
-    need_cols = ["Mtot_det_Msun", "dchi5l_median", "sigma_delta_5l_1sigma"]
-    missing = [c for c in need_cols if c not in df.columns]
-    if missing:
-        raise SystemExit(f"Joined CSV missing columns {missing}")
+    # Required structural columns
+    X_col = "X_Mminus4"
+    if X_col not in df.columns:
+        raise SystemExit(f"{JOINED} missing required column {X_col!r}")
 
-    sel = df.dropna(subset=need_cols)
-    print(f"[INFO] using {len(sel)} events for plotting")
-
-    M   = sel["Mtot_det_Msun"].to_numpy()
-    d5l = sel["dchi5l_median"].to_numpy()
-    sig = sel["sigma_delta_5l_1sigma"].to_numpy()
-    X   = X_from_mass(M)
-
-    # Refit alpha_hat to be sure we are consistent with the data at hand
-    alpha_hat, sigma_alpha, ci68, ci90, (X_fit, resid, chi2, dof) = weighted_fit_alpha(M, d5l, sig)
-    print(f"[INFO] alpha_hat [m^4] = {alpha_hat:.6e} ± {sigma_alpha:.6e} (68%)")
-    print(f"[INFO] chi^2/dof = {chi2:.2f}/{dof}")
-
-    # Per-event alpha_i = delta_i / X_i, with propagated errors
-    alpha_i = d5l / X
-    sigma_alpha_i = sig / X
-
-    FIG.mkdir(parents=True, exist_ok=True)
-
-    # 1) alpha_max vs mass
-    plt.figure(figsize=(6, 4))
-    plt.errorbar(
-        M,
-        alpha_i,
-        yerr=sigma_alpha_i,
-        fmt="o",
-        color="C0",
-        label="GWTC-3 events",
+    # Try to locate the PN-test delta and sigma columns
+    delta_col = choose_column(
+        df,
+        [
+            "delta_phi_5l_median_eff",  # from our dchi5l summary
+            "dchi5l_median",            # alternative naming
+            "delta_phi_5l_median",      # from original mass table
+        ],
     )
 
-    # best-fit band (±1σ in alpha_hat)
-    M_grid = np.linspace(0.9 * M.min(), 1.1 * M.max(), 200)
-    X_grid = X_from_mass(M_grid)
-    y_fit  = alpha_hat
-    # Plot as horizontal band because alpha_hat is common, not mass-dependent
-    plt.axhline(alpha_hat, color="C1", ls="-", label=r"common $\hat{\alpha}$")
-    plt.axhline(alpha_hat + sigma_alpha, color="C1", ls="--", lw=1, alpha=0.7)
-    plt.axhline(alpha_hat - sigma_alpha, color="C1", ls="--", lw=1, alpha=0.7)
+    sigma_col = "sigma_delta_5l_1sigma"
+    if sigma_col not in df.columns:
+        raise SystemExit(f"{JOINED} missing required column {sigma_col!r}")
 
-    plt.xlabel(r"$M_{\rm det}\ [{\rm M}_\odot]$")
-    plt.ylabel(r"$\hat{\alpha}_i = \delta_{5\ell,i} / X_i\ [{\rm m}^4]$")
-    plt.title(r"GWTC-3 PN mass trend: per-event $\hat{\alpha}_i$")
-    plt.grid(True, which="both", ls=":")
-    plt.legend()
-    plt.tight_layout()
-    out1 = FIG / "gwtc3_alpha_max_v_mass_plot.png"
-    plt.savefig(out1, dpi=220)
-    plt.close()
-    print(f"[OK] wrote {out1}")
+    mass_col = "Mtot_det_Msun" if "Mtot_det_Msun" in df.columns else "Mtot_source_Msun"
 
-    # 2) delta vs X
-    plt.figure(figsize=(6, 4))
-    plt.errorbar(
+    # Drop rows with missing values
+    sel = df.dropna(subset=[X_col, delta_col, sigma_col, mass_col])
+    print("[INFO] usable rows for fit:", len(sel))
+    if sel.empty:
+        raise SystemExit("No usable rows in joined CSV for GWTC-3 mass trend.")
+
+    X = sel[X_col].to_numpy(dtype=float)
+    delta = sel[delta_col].to_numpy(dtype=float)
+    sigma = sel[sigma_col].to_numpy(dtype=float)
+    M = sel[mass_col].to_numpy(dtype=float)
+
+    # Weighted fit delta = S X
+    w = 1.0 / (sigma**2)
+    num = np.sum(w * X * delta)
+    den = np.sum(w * X * X)
+    S = num / den
+    var_S = 1.0 / den
+    sigma_S = np.sqrt(var_S)
+
+    resid = delta - S * X
+    chi2 = np.sum((resid / sigma) ** 2)
+    dof = len(delta) - 1
+
+    print(f"[INFO] best-fit S (delta = S X) = {S:.6e} +/- {sigma_S:.6e}")
+    print(f"[INFO] chi^2/dof = {chi2:.2f} / {dof}")
+
+    # === Figure 1: delta vs X with fit line ===
+    fig1, ax1 = plt.subplots(figsize=(5.0, 4.0))
+    ax1.errorbar(
         X,
-        d5l,
-        yerr=sig,
+        delta,
+        yerr=sigma,
         fmt="o",
-        color="C0",
-        label="GWTC-3 events",
+        ms=5,
+        capsize=3,
+        label="GWTC-3 PN tests",
     )
     xg = np.linspace(0.9 * X.min(), 1.1 * X.max(), 200)
-    plt.plot(xg, alpha_hat * xg, "C1-", label=r"fit $\delta_{5\ell} = \hat{\alpha} X$")
-    plt.xlabel(r"$X \equiv 1/(GM/c^2)^4\ [{\rm m}^{-4}]$")
-    plt.ylabel(r"$\hat{\delta}_{5\ell}$")
-    plt.title(r"GWTC-3 PN mass trend: $\delta_{5\ell}$ vs $X$")
-    plt.grid(True, which="both", ls=":")
-    plt.legend()
-    plt.tight_layout()
-    out2 = FIG / "gwtc3_delta_vs_X.png"
-    plt.savefig(out2, dpi=220)
-    plt.close()
-    print(f"[OK] wrote {out2}")
+    ax1.plot(xg, S * xg, label=rf"fit, S = {S:.2e}")
+    ax1.axhline(0.0, color="k", ls=":", lw=0.8)
 
-    # 3) residuals vs mass
-    plt.figure(figsize=(6, 4))
-    plt.errorbar(
+    ax1.set_xlabel(r"$X \equiv 1/(GM/c^2)^4\ [{\rm m}^{-4}]$")
+    ax1.set_ylabel(r"$\delta\hat{\phi}_{5\ell}$")
+    ax1.set_title("GWTC-3 2.5PN tail test: mass trend")
+    ax1.grid(True, which="both", ls=":", alpha=0.5)
+    ax1.legend(fontsize=8)
+
+    fig1.tight_layout()
+    OUT_DELTA.parent.mkdir(parents=True, exist_ok=True)
+    fig1.savefig(OUT_DELTA, dpi=220, bbox_inches="tight")
+    print(f"[ok] Wrote {OUT_DELTA}")
+
+    # === Figure 2: residuals vs detector-frame mass ===
+    fig2, ax2 = plt.subplots(figsize=(5.0, 4.0))
+    ax2.errorbar(
         M,
         resid,
-        yerr=sig,
+        yerr=sigma,
         fmt="o",
-        color="C0",
+        ms=5,
+        capsize=3,
     )
-    plt.axhline(0.0, color="k", ls="--", lw=1)
-    plt.xlabel(r"$M_{\rm det}\ [{\rm M}_\odot]$")
-    plt.ylabel(r"$\delta_{5\ell} - \hat{\alpha} X$")
-    plt.title("GWTC-3 PN mass-trend residuals")
-    plt.grid(True, which="both", ls=":")
-    plt.tight_layout()
-    out3 = FIG / "gwtc3_residuals_vs_M.png"
-    plt.savefig(out3, dpi=220)
-    plt.close()
-    print(f"[OK] wrote {out3}")
+    ax2.axhline(0.0, color="k", ls=":", lw=0.8)
+    ax2.set_xlabel(r"$M_{\rm tot}^{\rm(det)}\ [{\rm M}_\odot]$")
+    ax2.set_ylabel(r"$\delta\hat{\phi}_{5\ell} - S X$")
+    ax2.set_title("Residuals of common-$\\alpha$ fit (GWTC-3)")
+    ax2.grid(True, which="both", ls=":", alpha=0.5)
+
+    fig2.tight_layout()
+    fig2.savefig(OUT_RESID, dpi=220, bbox_inches="tight")
+    print(f"[ok] Wrote {OUT_RESID}")
 
 
 if __name__ == "__main__":
