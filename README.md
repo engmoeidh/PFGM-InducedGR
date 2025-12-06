@@ -17,4 +17,4 @@ python scripts/make_figs.py
 - figures/ final plots used by the paper
 - results/ logs, tables
 - tests/   unit/smoke tests
-- paper/   LaTeX manuscript (CQG-ready)
+- paper/   LaTeX manuscript 
