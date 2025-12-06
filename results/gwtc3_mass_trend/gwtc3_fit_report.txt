@@ -1,0 +1,8 @@
+alpha_hat [m^4] = -2.213009e+15
+sigma_alpha [m^4] = 1.363376e+16
+68% CI: [-1.584677e+16, 1.142075e+16]
+90% CI: [-2.457237e+16, 2.014636e+16]
+chi^2 / dof = 12.14 / 8
+kappa_2.5 used = 1.000
+
+Notes: detector-frame masses, X = 1/(GM/c^2)^4.
